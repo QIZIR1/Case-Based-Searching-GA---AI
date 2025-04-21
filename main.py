@@ -120,32 +120,152 @@ def fitness(populasi)
         #menambahkan satu item ke list
         fitness_values.append((kromosom, x1, x2, fungsi))
     return fitness_values
-
 #pemilihan orang tua
-def selection():
+def selection(fitness_values, tournament_size=3):
+    selected_parents = []
     
-
-#Crossover (pindah silang)
-def crossover():
+    for _ in range(POPULATION_SIZE):
+        # Pilih kandidat secara acak untuk turnamen
+        tournament_candidates = random.sample(fitness_values, tournament_size)
+        
+        # Urutkan kandidat berdasarkan nilai fitness (dari terkecil ke terbesar karena minimization problem)
+        tournament_candidates.sort(key=lambda x: x[3])
+        
+        # Pilih kromosom dengan fitness terbaik (terkecil)
+        selected_parents.append(tournament_candidates[0][0])
     
+    return selected_parents
 
-#mutasi
-def mutation():
+# Crossover (pindah silang) dengan single-point crossover
+def crossover(parents):
+    offspring = []
     
+    # Pastikan jumlah parents genap
+    if len(parents) % 2 != 0:
+        parents.append(parents[0])
+    
+    # Lakukan crossover untuk setiap pasangan parent
+    for i in range(0, len(parents), 2):
+        parent1 = parents[i]
+        parent2 = parents[i+1]
+        
+        # Peluang crossover
+        if random.random() < P_C:
+            # Pilih titik crossover secara acak
+            crossover_point = random.randint(1, PANJANG_KROMOSOM - 1)
+            
+            # Buat anak dari hasil crossover
+            child1 = parent1[:crossover_point] + parent2[crossover_point:]
+            child2 = parent2[:crossover_point] + parent1[crossover_point:]
+            
+            offspring.append(child1)
+            offspring.append(child2)
+        else:
+            # Jika tidak terjadi crossover, orang tua diteruskan sebagai anak
+            offspring.append(parent1)
+            offspring.append(parent2)
+    
+    return offspring
 
-#penggantian generasi
-def generation_switch():
+# mutasi
+def mutation(offspring):
+    mutated_offspring = []
+    
+    for individual in offspring:
+        # Ubah string menjadi list agar bisa dimodifikasi
+        individual_list = list(individual)
+        
+        # Peluang mutasi untuk setiap bit
+        for i in range(len(individual_list)):
+            if random.random() < P_M:
+                # Flip bit (ubah 0 jadi 1 atau 1 jadi 0)
+                individual_list[i] = '1' if individual_list[i] == '0' else '0'
+        
+        # Ubah kembali ke string
+        mutated_individual = ''.join(individual_list)
+        mutated_offspring.append(mutated_individual)
+    
+    return mutated_offspring
+
+# penggantian generasi dengan elitism
+def generation_switch(current_population, offspring, elitism_count=2):
+    # Hitung fitness untuk populasi saat ini
+    current_fitness = fitness(current_population)
+    
+    # Urutkan berdasarkan nilai fitness (dari terkecil ke terbesar karena minimization problem)
+    current_fitness.sort(key=lambda x: x[3])
+    
+    # Ambil beberapa individu terbaik (elitism)
+    elites = [individual[0] for individual in current_fitness[:elitism_count]]
+    
+    # Hitung fitness untuk offspring
+    offspring_fitness = fitness(offspring)
+    
+    # Urutkan berdasarkan nilai fitness
+    offspring_fitness.sort(key=lambda x: x[3])
+    
+    # Buat populasi baru dengan elites dan offspring terbaik
+    new_population = elites + [individual[0] for individual in offspring_fitness[:POPULATION_SIZE - elitism_count]]
+    
+    return new_population
     
 
 #main function
 def main():
     # inisialisasi populasi awal
-    populasi_awal = insialisasi_populasi()
+    populasi = insialisasi_populasi()
     print("Populasi Awal:")
-    for i, kromosom in enumerate(populasi_awal, start=1):
+    for i, kromosom in enumerate(populasi, start=1):
         print(f"{i:2d}: {kromosom}")
-    fitness_pop = fitness(populasi_awal)
-    print("Fitness awal:")
+    
+    # Analisis populasi awal
+    fitness_pop = fitness(populasi)
+    print("\nFitness awal:")
     for krom, x1, x2, funct in fitness_pop:
-        print(f"Kromosom: {krom}, x1: {x1}, x2: {x2}, Fitness: {funct}")
+        print(f"Kromosom: {krom}, x1: {x1:.4f}, x2: {x2:.4f}, Fitness: {funct:.4f}")
+    
+    # Simpan individu terbaik di setiap generasi
+    best_individuals = []
+    best_individual = get_best_individual(populasi)
+    best_individuals.append(best_individual)
+    
+    # Proses evolusi
+    for generasi in range(GENERASI):
+        # Seleksi parents
+        parents = selection(fitness(populasi))
+        
+        # Crossover
+        offspring = crossover(parents)
+        
+        # Mutasi
+        mutated_offspring = mutation(offspring)
+        
+        # Ganti generasi
+        populasi = generation_switch(populasi, mutated_offspring)
+        
+        # Catat individu terbaik
+        best_individual = get_best_individual(populasi)
+        best_individuals.append(best_individual)
+        
+        # Cetak progress setiap 10 generasi
+        if (generasi + 1) % 10 == 0:
+            print(f"\nGenerasi {generasi + 1}:")
+            print(f"Best fitness: {best_individual[3]:.6f}, x1: {best_individual[1]:.6f}, x2: {best_individual[2]:.6f}")
+    
+    # Cetak hasil akhir
+    print("\nHasil Akhir setelah", GENERASI, "generasi:")
+    final_best = best_individuals[-1]
+    print(f"Kromosom: {final_best[0]}")
+    print(f"x1: {final_best[1]:.6f}")
+    print(f"x2: {final_best[2]:.6f}")
+    print(f"Fitness: {final_best[3]:.6f}")
+    
+    # Grafik konvergensi (nilai fitness terbaik di setiap generasi)
+    best_fitness_values = [ind[3] for ind in best_individuals]
+    print("\nProgres Nilai Fitness Terbaik per Generasi:")
+    for i, fitness_value in enumerate(best_fitness_values):
+        if i % 10 == 0 or i == len(best_fitness_values) - 1:
+            print(f"Generasi {i}: {fitness_value:.6f}")
 
+if __name__ == "__main__":
+    main()
